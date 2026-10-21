@@ -76,6 +76,87 @@ python app.py
 
 终端会显示本地访问地址，通常是 <http://127.0.0.1:7860>。在浏览器中打开该地址即可使用。停止应用时，在运行服务的终端按 `Control-C`；退出虚拟环境可运行 `deactivate`。
 
+## 使用 Cloudflare Tunnel 绑定自定义域名
+
+以下示例将 `agent.frank1998.uk` 指向本地 Gradio 服务 `http://127.0.0.1:7860`。需要已安装并登录 `cloudflared`、在 Cloudflare 管理的域名，以及已创建的 Tunnel。本文对应的本机 Tunnel 名称是 `next-js`；如果你的 Tunnel 名不同，请先运行 `cloudflared tunnel list` 查看，并在下方命令中替换。
+
+### 1. 确认 Tunnel 和凭据
+
+```bash
+cloudflared --version
+cloudflared tunnel list
+ls -l ~/.cloudflared/config.yml
+```
+
+Tunnel 配置文件通常包含 Tunnel 名称、凭据文件和 ingress 规则。不要把凭据文件提交到 GitHub 或分享给他人。
+
+### 2. 添加域名到 ingress 规则
+
+打开 Tunnel 配置：
+
+```bash
+nano ~/.cloudflared/config.yml
+```
+
+在 `ingress:` 下、最后的兜底规则（通常是 `- service: http_status:404`）之前添加：
+
+```yaml
+  - hostname: agent.frank1998.uk
+    service: http://127.0.0.1:7860
+```
+
+确认缩进与文件中其他 ingress 规则一致，并且兜底规则仍位于最后。保存 nano 文件：按 `Control-O`、回车，再按 `Control-X`。
+
+验证配置：
+
+```bash
+cloudflared tunnel --config ~/.cloudflared/config.yml ingress validate
+cloudflared tunnel --config ~/.cloudflared/config.yml ingress rule https://agent.frank1998.uk
+```
+
+第二条命令应显示该域名命中 `http://127.0.0.1:7860`。
+
+### 3. 为域名创建 DNS 路由
+
+对当前配置的 Tunnel 执行一次：
+
+```bash
+cloudflared tunnel route dns next-js agent.frank1998.uk
+```
+
+如果已创建过该 DNS 路由，不需要重复创建。可以检查 DNS 解析：
+
+```bash
+dig +short agent.frank1998.uk
+```
+
+### 4. 分别启动应用和 Tunnel
+
+先在一个终端窗口启动应用：
+
+```bash
+cd /项目所在路径/Advance_LLM
+source .venv/bin/activate
+python app.py
+```
+
+再打开另一个终端窗口，运行 Tunnel：
+
+```bash
+cloudflared tunnel --config ~/.cloudflared/config.yml run
+```
+
+保持两个终端窗口和这台 Mac 持续运行。应用进程或 Tunnel 停止、Mac 休眠或断网时，域名将无法访问。然后检查：
+
+```bash
+curl -I http://127.0.0.1:7860
+curl -I https://agent.frank1998.uk
+```
+
+第二条命令正常时应返回 `HTTP/2 200`。要停止服务，在对应终端按 `Control-C`。
+
+**公开访问和费用提示：**以上配置不启用登录或访问控制，知道域名的任何人都可以使用应用，并可能消耗百炼 API 额度。若需要限制访问，请在 Cloudflare Zero Trust 中为该域名配置 Cloudflare Access，再对外分享域名。
+
 ## 操作方法
 
 1. 在“你想咨询什么？”输入问题，例如“如何教育好一个孩子？”，然后点击“提交问题”。
