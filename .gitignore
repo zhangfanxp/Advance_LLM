@@ -1,0 +1,13 @@
+# Local credentials
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Tool and OS files
+.ruff_cache/
+.DS_Store
